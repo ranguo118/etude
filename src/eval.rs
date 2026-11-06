@@ -1,3 +1,12 @@
+//! A tree-walking interpreter: it evaluates the AST directly, checking
+//! types as it goes.
+//!
+//! Values borrow from the AST (the `'ast` lifetime) instead of copying
+//! function bodies out of it, so the AST must outlive every value. Local
+//! variables live in an immutable linked list (`Env`) that closures share
+//! by capturing it; top-level functions and builtins live in a table
+//! (`TreeEval::globals`) and are looked up by name.
+
 use crate::{
     ast::{Ast, BinOp, Decl, DeclKind, Expr, ExprKind, Ident, Stmt, StmtKind, UnOp},
     diagnostic::Diagnostic,
@@ -24,6 +33,9 @@ pub const MAX_CALL_DEPTH: usize = 10_000;
 const STACK_RED_ZONE: usize = 100 * 1024;
 const STACK_SEGMENT: usize = 1024 * 1024;
 
+/// The type of a value, as reported in errors. There is no type checker
+/// yet, so this is only known at run time; closures and builtins are both
+/// `Fun`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Type {
     Unit,
@@ -46,20 +58,26 @@ impl fmt::Display for Type {
     }
 }
 
+/// Everything that can go wrong while running a program. Each error
+/// carries the span to underline in the report.
 #[derive(Debug, Clone, PartialEq)]
 pub enum EvalError {
-    /// The divisor evaluated to zero; the span is the divisor.
+    /// The divisor of `/` or `%` evaluated to zero; the span is the divisor.
     DivisionByZero(Span),
-    UnboundIdent {
-        name: String,
-        span: Span,
-    },
+    /// A variable that is neither a local nor a global; the span is the
+    /// variable.
+    UnboundIdent { name: String, span: Span },
+    /// An arithmetic result outside the range of `i64`; the span is the
+    /// whole operation.
     IntegerOverflow(Span),
+    /// A value of the wrong type; the span is the expression that produced
+    /// it, e.g. the operand of `+` or the argument of a builtin.
     TypeMismatch {
         expected: Type,
         actual: Type,
         span: Span,
     },
+    /// A call with too many or too few arguments; the span is the call.
     ArgumentCountMismatch {
         expected: usize,
         actual: usize,
@@ -67,32 +85,20 @@ pub enum EvalError {
     },
     /// More than `limit` calls in progress at once, almost always infinite
     /// recursion; the span is the call that went over.
-    RecursionLimit {
-        limit: usize,
-        span: Span,
-    },
+    RecursionLimit { limit: usize, span: Span },
     /// The program defines no `main` function.
     MissingMain,
     /// `main` has parameters; the span covers them.
     MainHasParams(Span),
     /// `==` or `!=` on a value that cannot be compared, such as a function;
     /// the span is that operand.
-    NotComparable {
-        ty: Type,
-        span: Span,
-    },
+    NotComparable { ty: Type, span: Span },
     /// A top-level `def` uses a builtin's name; the span is the name.
-    RedefinesBuiltin {
-        name: String,
-        span: Span,
-    },
+    RedefinesBuiltin { name: String, span: Span },
     /// Writing the program's output failed, e.g. because stdout was closed;
     /// the span is the call that wrote. Holds the I/O error's message,
     /// since `io::Error` is neither `Clone` nor `PartialEq`.
-    Output {
-        message: String,
-        span: Span,
-    },
+    Output { message: String, span: Span },
 }
 
 /// The headline of the error; `diagnostic` adds the location and details.
@@ -181,6 +187,7 @@ impl Builtin {
         Builtin::Concat,
     ];
 
+    /// The name the program calls it by.
     fn name(self) -> &'static str {
         match self {
             Builtin::Print => "print",
@@ -207,13 +214,19 @@ impl fmt::Display for Builtin {
     }
 }
 
+/// A function value: its code, borrowed from the AST, and the environment
+/// it was created in.
 #[derive(Debug, Clone)]
 pub struct Closure<'ast> {
     params: &'ast [Ident],
     body: &'ast Expr,
+    /// The locals visible where the function was written. Empty for a
+    /// top-level `def`, which sees only globals.
     env: Env<'ast>,
 }
 
+/// A runtime value. Cloning is cheap: strings and closures are shared
+/// through `Rc`, never copied.
 #[derive(Debug, Clone)]
 pub enum Value<'ast> {
     Unit,
@@ -225,6 +238,7 @@ pub enum Value<'ast> {
 }
 
 impl Value<'_> {
+    /// The value's type, for error messages.
     pub fn ty(&self) -> Type {
         match self {
             Value::Unit => Type::Unit,
@@ -237,6 +251,8 @@ impl Value<'_> {
     }
 }
 
+/// How a value is shown to the user, e.g. as the result of `main`. Strings
+/// are quoted and escaped; functions show their source.
 impl fmt::Display for Value<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -259,14 +275,19 @@ impl fmt::Display for Value<'_> {
     }
 }
 
+/// One local variable: a node in the linked list that makes up an `Env`.
 #[derive(Debug, Clone)]
 struct Binding<'ast> {
     id: &'ast Ident,
     value: Value<'ast>,
-
+    /// The bindings that were in scope before this one.
     parent: Option<Rc<Binding<'ast>>>,
 }
 
+/// The local variables in scope, innermost first. It is a persistent list:
+/// binding a variable makes a new head that shares the rest, and nothing is
+/// ever changed in place. That makes capturing an environment in a closure
+/// cheap (one `Rc` clone), and an inner scope cannot affect an outer one.
 #[derive(Debug, Clone)]
 struct Env<'ast> {
     head: Option<Rc<Binding<'ast>>>,
@@ -277,6 +298,9 @@ impl<'ast> Env<'ast> {
         Env { head: None }
     }
 
+    /// This environment plus `id = value`. An existing variable of the same
+    /// name is shadowed, not replaced: environments that share the old
+    /// bindings, such as a closure's, still see it.
     fn bind(self, id: &'ast Ident, value: Value<'ast>) -> Self {
         Env {
             head: Some(Rc::new(Binding {
@@ -287,6 +311,7 @@ impl<'ast> Env<'ast> {
         }
     }
 
+    /// The innermost binding of `name`, so the most recent shadowing wins.
     fn search(&self, name: &str) -> Option<&Value<'ast>> {
         let mut curr = &self.head;
         loop {
@@ -305,11 +330,14 @@ impl<'ast> Env<'ast> {
     }
 }
 
+/// The interpreter's state while running one program.
 struct TreeEval<'ast, 'out> {
+    /// Builtins and top-level `def`s, by name. Locals shadow them.
     globals: HashMap<&'ast str, Value<'ast>>,
     /// Calls currently in progress. A `Cell` because evaluation takes
     /// `&self`.
     depth: Cell<usize>,
+    /// The most calls allowed in progress at once; see `MAX_CALL_DEPTH`.
     max_depth: usize,
     /// Where `println` writes. A `RefCell`, not a `Cell`, because writing
     /// needs a `&mut` to the writer, and only `RefCell` lends one out
@@ -317,6 +345,7 @@ struct TreeEval<'ast, 'out> {
     out: RefCell<&'out mut dyn Write>,
 }
 
+/// `value` as an integer, or a type error pointing at `span`.
 fn expect_int(value: Value<'_>, span: Span) -> Result<i64, EvalError> {
     match value {
         Value::Int(n) => Ok(n),
@@ -328,6 +357,7 @@ fn expect_int(value: Value<'_>, span: Span) -> Result<i64, EvalError> {
     }
 }
 
+/// `value` as a boolean, or a type error pointing at `span`.
 fn expect_bool(value: Value<'_>, span: Span) -> Result<bool, EvalError> {
     match value {
         Value::Bool(b) => Ok(b),
@@ -344,6 +374,8 @@ impl<'ast, 'out> TreeEval<'ast, 'out> {
         Self::with_max_depth(out, MAX_CALL_DEPTH)
     }
 
+    /// An interpreter that allows at most `max_depth` calls in progress,
+    /// with only the builtins defined.
     fn with_max_depth(out: &'out mut dyn Write, max_depth: usize) -> Self {
         TreeEval {
             globals: Builtin::ALL
@@ -356,10 +388,15 @@ impl<'ast, 'out> TreeEval<'ast, 'out> {
         }
     }
 
+    /// The value of the variable `name`: a local if there is one, else a
+    /// global.
     fn search<'env>(&'env self, name: &str, env: &'env Env<'ast>) -> Option<&'env Value<'ast>> {
         env.search(name).or_else(|| self.globals.get(name))
     }
 
+    /// Define a top-level function. Its body is not evaluated, and the names
+    /// it uses are looked up only when it runs, so definitions can refer to
+    /// each other in any order.
     fn eval_decl(&mut self, decl: &'ast Decl) -> Result<(), EvalError> {
         match &decl.kind {
             DeclKind::FunDecl { id, params, body } => {
@@ -380,6 +417,8 @@ impl<'ast, 'out> TreeEval<'ast, 'out> {
         }
     }
 
+    /// Run one statement of a block and return the environment for the
+    /// statements after it: extended by a `let`, unchanged otherwise.
     fn eval_stmt(&self, stmt: &'ast Stmt, env: Env<'ast>) -> Result<Env<'ast>, EvalError> {
         match &stmt.kind {
             StmtKind::Let { id, init } => {
@@ -388,12 +427,15 @@ impl<'ast, 'out> TreeEval<'ast, 'out> {
                 Ok(env)
             }
             StmtKind::ExprStmt(expr) => {
+                // Run for its effects; the value is discarded.
                 let _ = self.eval_expr(expr, &env)?;
                 Ok(env)
             }
         }
     }
 
+    /// Evaluate `expr` with the locals in `env`. Every recursive evaluation
+    /// goes through here, so that the stack grows when it runs low.
     fn eval_expr(&self, expr: &'ast Expr, env: &Env<'ast>) -> Result<Value<'ast>, EvalError> {
         stacker::maybe_grow(STACK_RED_ZONE, STACK_SEGMENT, || {
             self.eval_expr_inner(expr, env)
@@ -414,6 +456,8 @@ impl<'ast, 'out> TreeEval<'ast, 'out> {
                         span: expr.span,
                     })
             }
+            // The callee is evaluated first, then the arguments from left to
+            // right.
             ExprKind::Call { callee, args } => match self.eval_expr(callee, env)? {
                 Value::Fun(closure) => self.call_closure(&closure, args, env, expr.span),
                 Value::Builtin(builtin) => self.call_builtin(builtin, args, env, expr.span),
@@ -506,7 +550,8 @@ impl<'ast, 'out> TreeEval<'ast, 'out> {
                                     span: rhs.span,
                                 });
                             }
-                            // An integer and a boolean.
+                            // Two values of different types, such as an
+                            // integer and a string.
                             _ => {
                                 return Err(EvalError::TypeMismatch {
                                     expected: lv.ty(),
@@ -528,14 +573,16 @@ impl<'ast, 'out> TreeEval<'ast, 'out> {
                 match (c, f_branch) {
                     (true, Some(_)) => self.eval_expr(t_branch, env),
                     (false, Some(f_branch)) => self.eval_expr(f_branch, env),
+                    // Without `else`, the `if` is unit either way; the branch
+                    // still runs for its effects.
                     (true, None) => {
-                        // evaluate and discard for side effects
                         let _ = self.eval_expr(t_branch, env)?;
                         Ok(Value::Unit)
                     }
                     (_, None) => Ok(Value::Unit),
                 }
             }
+            // The closure captures the current locals by sharing them.
             ExprKind::Lambda { params, body } => {
                 let f = Value::Fun(Rc::new(Closure {
                     params,
@@ -544,6 +591,8 @@ impl<'ast, 'out> TreeEval<'ast, 'out> {
                 }));
                 Ok(f)
             }
+            // A block's `let`s extend a copy of `env`, so they go out of
+            // scope when the block ends.
             ExprKind::Block { stmts, tail } => {
                 let mut new_env = env.clone();
 
@@ -649,6 +698,9 @@ impl<'ast, 'out> TreeEval<'ast, 'out> {
         }
     }
 
+    /// Define every top-level function, then run `main`'s body. `main` is
+    /// entered directly rather than called, so it does not count towards
+    /// the call depth.
     pub fn eval(&mut self, ast: &'ast Ast) -> Result<Value<'ast>, EvalError> {
         for decl in &ast.decls {
             self.eval_decl(decl)?;
@@ -664,6 +716,8 @@ impl<'ast, 'out> TreeEval<'ast, 'out> {
             }
             self.eval_expr(closure.body, &closure.env)
         } else {
+            // Globals other than `def`s are builtins, and none of them is
+            // called `main`, so this cannot happen today.
             Err(EvalError::MissingMain)
         }
     }
