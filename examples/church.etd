@@ -1,0 +1,61 @@
+// Church numerals: the number n is the function that applies `f` n times,
+// `fun(f) => fun(x) => f(f(...f(x)))`. Nothing here uses integers except
+// `to_int`, which turns a numeral back into one so it can be printed.
+
+def zero(f) = fun(x) => x;
+def succ(n) = fun(f) => fun(x) => f(n(f)(x));
+
+// Apply `f` m times on top of applying it n times.
+def add(m, n) = fun(f) => fun(x) => m(f)(n(f)(x));
+// Apply "apply `f` n times" m times.
+def mul(m, n) = fun(f) => m(n(f));
+// m^n: apply "multiply by m" n times. Numerals take one argument at a time,
+// so a numeral can itself be the `f` of another one.
+def pow(m, n) = n(m);
+
+// The predecessor (Kleene's trick): rebuild the number while always
+// skipping the first application of `f`. The predecessor of zero is zero.
+def pred(n) = fun(f) => fun(x) =>
+    n(fun(g) => fun(h) => h(g(f)))(fun(u) => x)(fun(u) => u);
+// m - n, or zero if n > m: take the predecessor n times.
+def sub(m, n) = n(pred)(m);
+
+// Church booleans choose between two arguments.
+def yes(t) = fun(f) => t;
+def no(t) = fun(f) => f;
+def is_zero(n) = n(fun(u) => no)(yes);
+def leq(m, n) = is_zero(sub(m, n));
+
+def to_int(n) = n(fun(k) => k + 1)(0);
+def to_bool(b) = b(true)(false);
+def from_int(k) = if k == 0 { zero } else { succ(from_int(k - 1)) };
+
+// Recursion still needs the language's `if`: a Church boolean evaluates
+// both of its arguments, and evaluation is eager, so choosing between
+// `succ(zero)` and `mul(n, fact(pred(n)))` that way would never stop.
+def fact(n) = if to_bool(is_zero(n)) {
+    succ(zero)
+} else {
+    mul(n, fact(pred(n)))
+};
+
+def show(label, n) = println(concat(concat(label, " = "), int_to_str(to_int(n))));
+
+def main() = {
+    let two = succ(succ(zero));
+    let three = add(two, succ(zero));
+    show("0", zero);
+    show("3", three);
+    show("2 + 3", add(two, three));
+    show("2 * 3", mul(two, three));
+    show("2 ^ 3", pow(two, three));
+    show("3 ^ 2", pow(three, two));
+    show("pred 3", pred(three));
+    show("pred 0", pred(zero));
+    show("3 - 2", sub(three, two));
+    show("2 - 3", sub(two, three));
+    show("5!", fact(from_int(5)));
+    println(concat("2 <= 3: ", if to_bool(leq(two, three)) { "yes" } else { "no" }));
+    println(concat("3 <= 2: ", if to_bool(leq(three, two)) { "yes" } else { "no" }));
+    to_int(pow(two, from_int(10)))
+};
