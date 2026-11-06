@@ -1,0 +1,39 @@
+{
+  "name": "etude",
+  "displayName": "Etude",
+  "description": "Syntax highlighting for the etude language",
+  "version": "0.1.0",
+  "publisher": "guo543",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/guo543/etude"
+  },
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "etude",
+        "aliases": [
+          "Etude",
+          "etude"
+        ],
+        "extensions": [
+          ".etd"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "etude",
+        "scopeName": "source.etude",
+        "path": "./syntaxes/etude.tmLanguage.json"
+      }
+    ]
+  }
+}

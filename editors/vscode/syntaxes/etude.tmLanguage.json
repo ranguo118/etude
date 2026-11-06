@@ -1,0 +1,153 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Etude",
+  "scopeName": "source.etude",
+  "fileTypes": ["etd"],
+  "patterns": [
+    { "include": "#comment" },
+    { "include": "#string" },
+    { "include": "#definition" },
+    { "include": "#keyword" },
+    { "include": "#constant" },
+    { "include": "#number" },
+    { "include": "#builtin" },
+    { "include": "#call" },
+    { "include": "#operator" },
+    { "include": "#punctuation" },
+    { "include": "#identifier" },
+    { "include": "#unknown" }
+  ],
+  "repository": {
+    "comment": {
+      "name": "comment.line.double-slash.etude",
+      "match": "//.*$"
+    },
+    "string": {
+      "comment": "Strings end at the closing quote or, unterminated, at the end of the line, as in the lexer.",
+      "name": "string.quoted.double.etude",
+      "begin": "\"",
+      "beginCaptures": {
+        "0": { "name": "punctuation.definition.string.begin.etude" }
+      },
+      "end": "\"|$",
+      "endCaptures": {
+        "0": { "name": "punctuation.definition.string.end.etude" }
+      },
+      "patterns": [
+        {
+          "name": "constant.character.escape.etude",
+          "match": "\\\\[nrt\\\\\"0]"
+        },
+        {
+          "comment": "Any other escape is an error in the parser.",
+          "name": "invalid.illegal.escape.etude",
+          "match": "\\\\.?"
+        }
+      ]
+    },
+    "definition": {
+      "comment": "`def name(` names a top-level function.",
+      "match": "\\b(def)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+      "captures": {
+        "1": { "name": "storage.type.function.etude" },
+        "2": { "name": "entity.name.function.etude" }
+      }
+    },
+    "keyword": {
+      "patterns": [
+        {
+          "name": "keyword.control.conditional.etude",
+          "match": "\\b(if|else)\\b"
+        },
+        {
+          "name": "storage.type.function.etude",
+          "match": "\\b(def|fun)\\b"
+        },
+        {
+          "name": "storage.type.etude",
+          "match": "\\blet\\b"
+        }
+      ]
+    },
+    "constant": {
+      "name": "constant.language.boolean.etude",
+      "match": "\\b(true|false)\\b"
+    },
+    "number": {
+      "patterns": [
+        {
+          "name": "constant.numeric.integer.decimal.etude",
+          "match": "\\b[0-9]+\\b"
+        },
+        {
+          "comment": "Letters or `_` after the digits make the literal invalid, as in the lexer.",
+          "name": "invalid.illegal.numeric.etude",
+          "match": "\\b[0-9][A-Za-z0-9_]*"
+        }
+      ]
+    },
+    "builtin": {
+      "name": "support.function.builtin.etude",
+      "match": "\\b(print|println|int_to_str|concat)\\b"
+    },
+    "call": {
+      "match": "\\b([A-Za-z_][A-Za-z0-9_]*)\\s*(?=\\()",
+      "captures": {
+        "1": { "name": "entity.name.function.call.etude" }
+      }
+    },
+    "operator": {
+      "patterns": [
+        {
+          "name": "keyword.operator.arrow.etude",
+          "match": "=>"
+        },
+        {
+          "name": "keyword.operator.comparison.etude",
+          "match": "==|!=|<=|>=|<|>"
+        },
+        {
+          "name": "keyword.operator.logical.etude",
+          "match": "&&|\\|\\||!"
+        },
+        {
+          "name": "keyword.operator.assignment.etude",
+          "match": "="
+        },
+        {
+          "name": "keyword.operator.arithmetic.etude",
+          "match": "[-+*/%]"
+        }
+      ]
+    },
+    "punctuation": {
+      "patterns": [
+        {
+          "name": "punctuation.terminator.statement.etude",
+          "match": ";"
+        },
+        {
+          "name": "punctuation.separator.comma.etude",
+          "match": ","
+        },
+        {
+          "name": "punctuation.section.block.etude",
+          "match": "[{}]"
+        },
+        {
+          "name": "punctuation.section.parens.etude",
+          "match": "[()]"
+        }
+      ]
+    },
+    "identifier": {
+      "name": "variable.other.etude",
+      "match": "\\b[A-Za-z_][A-Za-z0-9_]*\\b"
+    },
+    "unknown": {
+      "comment": "Anything no other rule matched is a character the lexer rejects.",
+      "name": "invalid.illegal.character.etude",
+      "match": "\\S"
+    }
+  }
+}
