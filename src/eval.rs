@@ -9,8 +9,10 @@
 
 use crate::{
     ast::{Ast, BinOp, Decl, DeclKind, Expr, ExprKind, Ident, Stmt, StmtKind, UnOp},
+    builtin::Builtin,
     diagnostic::Diagnostic,
     span::Span,
+    types::Type,
 };
 use std::{
     cell::{Cell, RefCell},
@@ -32,31 +34,6 @@ pub const MAX_CALL_DEPTH: usize = 10_000;
 /// `MAX_CALL_DEPTH`. The values are rustc's.
 const STACK_RED_ZONE: usize = 100 * 1024;
 const STACK_SEGMENT: usize = 1024 * 1024;
-
-/// The type of a value, as reported in errors. There is no type checker
-/// yet, so this is only known at run time; closures and builtins are both
-/// `Fun`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Type {
-    Unit,
-    Int,
-    Bool,
-    Fun,
-    Str,
-}
-
-/// The type's name, as it will appear in signatures and type errors.
-impl fmt::Display for Type {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Type::Unit => write!(f, "()"),
-            Type::Int => write!(f, "int"),
-            Type::Fun => write!(f, "fun"),
-            Type::Bool => write!(f, "bool"),
-            Type::Str => write!(f, "string"),
-        }
-    }
-}
 
 /// Everything that can go wrong while running a program. Each error
 /// carries the span to underline in the report.
@@ -165,52 +142,6 @@ impl EvalError {
                 .with_note("pick another name; a local `let` or parameter may shadow it"),
             EvalError::Output { message, span } => at(span, message.clone()),
         }
-    }
-}
-
-/// A function implemented in Rust. Each one is bound in the globals under
-/// its `name`; `TreeEval::call_builtin` runs it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Builtin {
-    Print,
-    Println,
-    IntToStr,
-    Concat,
-}
-
-impl Builtin {
-    /// Every builtin, for pre-filling the globals.
-    const ALL: [Builtin; 4] = [
-        Builtin::Print,
-        Builtin::Println,
-        Builtin::IntToStr,
-        Builtin::Concat,
-    ];
-
-    /// The name the program calls it by.
-    fn name(self) -> &'static str {
-        match self {
-            Builtin::Print => "print",
-            Builtin::Println => "println",
-            Builtin::IntToStr => "int_to_str",
-            Builtin::Concat => "concat",
-        }
-    }
-
-    /// The type of each parameter. The evaluator checks the arguments
-    /// against these before running the builtin.
-    fn params(self) -> &'static [Type] {
-        match self {
-            Builtin::Print | Builtin::Println => &[Type::Str],
-            Builtin::IntToStr => &[Type::Int],
-            Builtin::Concat => &[Type::Str, Type::Str],
-        }
-    }
-}
-
-impl fmt::Display for Builtin {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.name())
     }
 }
 

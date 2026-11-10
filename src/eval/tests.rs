@@ -868,14 +868,6 @@ fn output_errors_point_at_the_call() {
 }
 
 #[test]
-fn builtin_names_are_unique() {
-    let mut names: Vec<_> = Builtin::ALL.iter().map(|b| b.name()).collect();
-    names.sort_unstable();
-    names.dedup();
-    assert_eq!(names.len(), Builtin::ALL.len());
-}
-
-#[test]
 fn remainder_has_the_sign_of_the_dividend() {
     assert_eq!(printed("def main() = 7 % 3;"), "1");
     assert_eq!(printed("def main() = -7 % 3;"), "-1");
