@@ -2,8 +2,8 @@ use std::fmt;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Span {
-    pub start: usize,
-    pub end: usize,
+    pub(crate) start: usize,
+    pub(crate) end: usize,
 }
 
 impl fmt::Display for Span {

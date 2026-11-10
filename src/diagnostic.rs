@@ -12,15 +12,15 @@ use crate::span::Span;
 #[derive(Debug, Clone, PartialEq)]
 pub struct Diagnostic {
     /// The headline, e.g. "expected `;`, found end of input".
-    pub message: String,
+    pub(crate) message: String,
     /// Where in the source, and the text shown next to the underline, e.g.
     /// "expected `;`". `None` for errors about the program as a whole.
-    pub label: Option<(Span, String)>,
-    pub notes: Vec<String>,
+    pub(crate) label: Option<(Span, String)>,
+    pub(crate) notes: Vec<String>,
 }
 
 impl Diagnostic {
-    pub fn new(message: impl Into<String>, span: Span, label: impl Into<String>) -> Self {
+    pub(crate) fn new(message: impl Into<String>, span: Span, label: impl Into<String>) -> Self {
         Diagnostic {
             message: message.into(),
             label: Some((span, label.into())),
@@ -30,7 +30,7 @@ impl Diagnostic {
 
     /// An error with no particular place in the source, such as a missing
     /// `main`.
-    pub fn without_location(message: impl Into<String>) -> Self {
+    pub(crate) fn without_location(message: impl Into<String>) -> Self {
         Diagnostic {
             message: message.into(),
             label: None,
@@ -38,7 +38,7 @@ impl Diagnostic {
         }
     }
 
-    pub fn with_note(mut self, note: impl Into<String>) -> Self {
+    pub(crate) fn with_note(mut self, note: impl Into<String>) -> Self {
         self.notes.push(note.into());
         self
     }
@@ -49,13 +49,7 @@ impl Diagnostic {
         let _ = self.write(path, src, color, std::io::stderr());
     }
 
-    pub fn write(
-        &self,
-        path: &str,
-        src: &str,
-        color: bool,
-        mut w: impl Write,
-    ) -> std::io::Result<()> {
+    fn write(&self, path: &str, src: &str, color: bool, mut w: impl Write) -> std::io::Result<()> {
         let Some((span, label)) = &self.label else {
             // ariadne prints only the headline when nothing is underlined, so
             // the file and notes are written by hand.

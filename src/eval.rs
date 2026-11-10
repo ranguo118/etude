@@ -25,7 +25,7 @@ use std::{
 /// How many calls may be in progress at once. Deeper recursion is reported
 /// as an error, the same in every build, so that a runaway program stops
 /// with a clear message.
-pub const MAX_CALL_DEPTH: usize = 10_000;
+const MAX_CALL_DEPTH: usize = 10_000;
 
 /// When less than this much stack is left, `eval_expr` continues on a new
 /// segment of `STACK_SEGMENT` bytes. The evaluator recurses once per nested
@@ -170,7 +170,7 @@ pub enum Value<'ast> {
 
 impl Value<'_> {
     /// The value's type, for error messages.
-    pub fn ty(&self) -> Type {
+    fn ty(&self) -> Type {
         match self {
             Value::Unit => Type::Unit,
             Value::Int(_) => Type::Int,
@@ -632,7 +632,7 @@ impl<'ast, 'out> TreeEval<'ast, 'out> {
     /// Define every top-level function, then run `main`'s body. `main` is
     /// entered directly rather than called, so it does not count towards
     /// the call depth.
-    pub fn eval(&mut self, ast: &'ast Ast) -> Result<Value<'ast>, EvalError> {
+    fn eval(&mut self, ast: &'ast Ast) -> Result<Value<'ast>, EvalError> {
         for decl in &ast.decls {
             self.eval_decl(decl)?;
         }
@@ -661,10 +661,7 @@ pub fn eval(ast: &Ast) -> Result<Value<'_>, EvalError> {
 }
 
 /// Like `eval`, but the program's output goes to `out`.
-pub fn eval_with_output<'ast>(
-    ast: &'ast Ast,
-    out: &mut dyn Write,
-) -> Result<Value<'ast>, EvalError> {
+fn eval_with_output<'ast>(ast: &'ast Ast, out: &mut dyn Write) -> Result<Value<'ast>, EvalError> {
     TreeEval::new(out).eval(ast)
 }
 

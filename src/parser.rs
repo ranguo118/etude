@@ -54,7 +54,7 @@ pub enum ParserError {
 }
 
 impl ParserError {
-    pub fn span(&self) -> Span {
+    fn span(&self) -> Span {
         match self {
             ParserError::UnknownChar { span, .. }
             | ParserError::InvalidInt { span, .. }

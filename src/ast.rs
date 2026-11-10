@@ -2,7 +2,7 @@ use crate::span::Span;
 use std::{fmt, rc::Rc};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum UnOp {
+pub(crate) enum UnOp {
     /// `-x`: integer negation.
     Neg,
     /// `!x`: boolean negation.
@@ -10,7 +10,7 @@ pub enum UnOp {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BinOp {
+pub(crate) enum BinOp {
     // Arithmetic: integers to an integer.
     Add,
     Sub,
@@ -68,19 +68,19 @@ impl fmt::Display for BinOp {
 }
 
 #[derive(Debug, Clone)]
-pub struct Ident {
-    pub name: String,
-    pub span: Span,
+pub(crate) struct Ident {
+    pub(crate) name: String,
+    pub(crate) span: Span,
 }
 
 #[derive(Debug, Clone)]
-pub enum StmtKind {
+pub(crate) enum StmtKind {
     Let { id: Ident, init: Expr },
     ExprStmt(Expr),
 }
 
 #[derive(Debug, Clone)]
-pub enum ExprKind {
+pub(crate) enum ExprKind {
     Unit,
     Int(i64),
     Bool(bool),
@@ -109,26 +109,27 @@ pub enum ExprKind {
 }
 
 #[derive(Debug, Clone)]
-pub struct Stmt {
-    pub kind: StmtKind,
-    pub span: Span,
+pub(crate) struct Stmt {
+    pub(crate) kind: StmtKind,
+    #[allow(dead_code, reason = "only tests read it so far; diagnostics will")]
+    pub(crate) span: Span,
 }
 
 #[derive(Debug, Clone)]
-pub struct Expr {
-    pub kind: ExprKind,
-    pub span: Span,
+pub(crate) struct Expr {
+    pub(crate) kind: ExprKind,
+    pub(crate) span: Span,
 }
 
 impl Stmt {
-    pub fn let_decl(id: Ident, init: Expr, start: usize, end: usize) -> Self {
+    pub(crate) fn let_decl(id: Ident, init: Expr, start: usize, end: usize) -> Self {
         Stmt {
             kind: StmtKind::Let { id, init },
             span: Span { start, end },
         }
     }
 
-    pub fn expr_stmt(expr: Expr, start: usize, end: usize) -> Self {
+    pub(crate) fn expr_stmt(expr: Expr, start: usize, end: usize) -> Self {
         Stmt {
             kind: StmtKind::ExprStmt(expr),
             span: Span { start, end },
@@ -137,42 +138,42 @@ impl Stmt {
 }
 
 impl Expr {
-    pub fn unit(start: usize, end: usize) -> Self {
+    pub(crate) fn unit(start: usize, end: usize) -> Self {
         Expr {
             kind: ExprKind::Unit,
             span: Span { start, end },
         }
     }
 
-    pub fn int(n: i64, start: usize, end: usize) -> Self {
+    pub(crate) fn int(n: i64, start: usize, end: usize) -> Self {
         Expr {
             kind: ExprKind::Int(n),
             span: Span { start, end },
         }
     }
 
-    pub fn bool(b: bool, start: usize, end: usize) -> Self {
+    pub(crate) fn bool(b: bool, start: usize, end: usize) -> Self {
         Expr {
             kind: ExprKind::Bool(b),
             span: Span { start, end },
         }
     }
 
-    pub fn str(s: String, span: Span) -> Self {
+    pub(crate) fn str(s: String, span: Span) -> Self {
         Expr {
             kind: ExprKind::Str(Rc::from(s)),
             span,
         }
     }
 
-    pub fn var(s: String, start: usize, end: usize) -> Self {
+    pub(crate) fn var(s: String, start: usize, end: usize) -> Self {
         Expr {
             kind: ExprKind::Var(s),
             span: Span { start, end },
         }
     }
 
-    pub fn call(callee: Expr, args: Vec<Expr>, start: usize, end: usize) -> Self {
+    pub(crate) fn call(callee: Expr, args: Vec<Expr>, start: usize, end: usize) -> Self {
         Expr {
             kind: ExprKind::Call {
                 callee: Box::new(callee),
@@ -182,21 +183,21 @@ impl Expr {
         }
     }
 
-    pub fn unary(op: UnOp, expr: Expr, start: usize, end: usize) -> Self {
+    pub(crate) fn unary(op: UnOp, expr: Expr, start: usize, end: usize) -> Self {
         Expr {
             kind: ExprKind::Unary(op, Box::new(expr)),
             span: Span { start, end },
         }
     }
 
-    pub fn binary(op: BinOp, lhs: Expr, rhs: Expr, start: usize, end: usize) -> Self {
+    pub(crate) fn binary(op: BinOp, lhs: Expr, rhs: Expr, start: usize, end: usize) -> Self {
         Expr {
             kind: ExprKind::Binary(op, Box::new(lhs), Box::new(rhs)),
             span: Span { start, end },
         }
     }
 
-    pub fn if_expr(
+    pub(crate) fn if_expr(
         cond: Expr,
         t_branch: Expr,
         f_branch: Option<Expr>,
@@ -213,7 +214,7 @@ impl Expr {
         }
     }
 
-    pub fn lambda(params: Vec<Ident>, body: Expr, start: usize, end: usize) -> Self {
+    pub(crate) fn lambda(params: Vec<Ident>, body: Expr, start: usize, end: usize) -> Self {
         Expr {
             kind: ExprKind::Lambda {
                 params,
@@ -223,7 +224,7 @@ impl Expr {
         }
     }
 
-    pub fn block(stmts: Vec<Stmt>, tail: Expr, start: usize, end: usize) -> Self {
+    pub(crate) fn block(stmts: Vec<Stmt>, tail: Expr, start: usize, end: usize) -> Self {
         Expr {
             kind: ExprKind::Block {
                 stmts,
@@ -297,7 +298,7 @@ impl fmt::Display for Expr {
 }
 
 #[derive(Debug, Clone)]
-pub enum DeclKind {
+pub(crate) enum DeclKind {
     // VarDecl {
     //     id: String,
     //     init: Expr,
@@ -310,13 +311,20 @@ pub enum DeclKind {
 }
 
 #[derive(Debug, Clone)]
-pub struct Decl {
-    pub kind: DeclKind,
-    pub span: Span,
+pub(crate) struct Decl {
+    pub(crate) kind: DeclKind,
+    #[allow(dead_code, reason = "only tests read it so far; diagnostics will")]
+    pub(crate) span: Span,
 }
 
 impl Decl {
-    pub fn function(id: Ident, params: Vec<Ident>, body: Expr, start: usize, end: usize) -> Self {
+    pub(crate) fn function(
+        id: Ident,
+        params: Vec<Ident>,
+        body: Expr,
+        start: usize,
+        end: usize,
+    ) -> Self {
         Decl {
             kind: DeclKind::FunDecl { id, params, body },
             span: Span { start, end },
@@ -343,7 +351,7 @@ impl fmt::Display for Decl {
 
 #[derive(Debug, Clone)]
 pub struct Ast {
-    pub decls: Vec<Decl>,
+    pub(crate) decls: Vec<Decl>,
 }
 
 impl fmt::Display for Ast {

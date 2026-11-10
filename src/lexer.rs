@@ -115,13 +115,13 @@ impl fmt::Display for TokenKind {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Token {
-    pub kind: TokenKind,
-    pub span: Span,
+pub(crate) struct Token {
+    pub(crate) kind: TokenKind,
+    pub(crate) span: Span,
 }
 
 impl Token {
-    pub fn new(kind: TokenKind, start: usize, end: usize) -> Self {
+    fn new(kind: TokenKind, start: usize, end: usize) -> Self {
         Token {
             kind,
             span: Span { start, end },
@@ -145,7 +145,7 @@ impl<'src> Lexer<'src> {
         }
     }
 
-    pub fn src(&self) -> &'src str {
+    pub(crate) fn src(&self) -> &'src str {
         self.src
     }
 
@@ -194,7 +194,7 @@ impl<'src> Lexer<'src> {
     /// Never fails: a character that cannot start a token comes back as
     /// `Unknown`. Integers are not range-checked here; the parser does that.
     /// Whitespace and `//` comments between tokens are skipped.
-    pub fn next_token(&mut self) -> Token {
+    pub(crate) fn next_token(&mut self) -> Token {
         self.skip_trivia();
 
         let start = self.pos();
