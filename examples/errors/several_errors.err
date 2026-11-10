@@ -1,0 +1,34 @@
+Error: parameter `a` is listed more than once
+   ╭─[ examples/errors/several_errors.etd:2:10 ]
+   │
+ 2 │ def f(a, a) = b;
+   │       ┬  ┬
+   │       ╰───── first listed here
+   │          │
+   │          ╰── listed again here
+───╯
+Error: `f` is defined more than once
+   ╭─[ examples/errors/several_errors.etd:4:5 ]
+   │
+ 2 │ def f(a, a) = b;
+   │     ┬
+   │     ╰── first defined here
+   │
+ 4 │ def f() = 1;
+   │     ┬
+   │     ╰── defined again here
+───╯
+Error: cannot find `b` in this scope
+   ╭─[ examples/errors/several_errors.etd:2:15 ]
+   │
+ 2 │ def f(a, a) = b;
+   │               ┬
+   │               ╰── not found in this scope
+───╯
+Error: cannot find `c` in this scope
+   ╭─[ examples/errors/several_errors.etd:6:16 ]
+   │
+ 6 │ def main() = f(c);
+   │                ┬
+   │                ╰── not found in this scope
+───╯

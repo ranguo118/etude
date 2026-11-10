@@ -1,0 +1,11 @@
+Error: `area` is defined more than once
+   ╭─[ examples/errors/duplicate_def.etd:5:5 ]
+   │
+ 1 │ def area(w, h) = w * h;
+   │     ──┬─
+   │       ╰─── first defined here
+   │
+ 5 │ def area(r) = 3 * r * r;
+   │     ──┬─
+   │       ╰─── defined again here
+───╯

@@ -1,0 +1,7 @@
+Error: cannot find `typo` in this scope
+   ╭─[ examples/errors/unbound_in_dead_branch.etd:3:35 ]
+   │
+ 3 │ def main() = if true { 1 } else { typo };
+   │                                   ──┬─
+   │                                     ╰─── not found in this scope
+───╯

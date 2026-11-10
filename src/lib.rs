@@ -1,6 +1,6 @@
 mod ast;
 mod builtin;
-// pub mod check;
+pub mod check;
 pub mod diagnostic;
 pub mod eval;
 pub mod lexer;

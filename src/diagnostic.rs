@@ -16,6 +16,8 @@ pub struct Diagnostic {
     /// Where in the source, and the text shown next to the underline, e.g.
     /// "expected `;`". `None` for errors about the program as a whole.
     pub(crate) label: Option<(Span, String)>,
+    /// Other places worth pointing at, e.g. "first defined here".
+    pub(crate) secondary: Vec<(Span, String)>,
     pub(crate) notes: Vec<String>,
 }
 
@@ -24,6 +26,7 @@ impl Diagnostic {
         Diagnostic {
             message: message.into(),
             label: Some((span, label.into())),
+            secondary: Vec::new(),
             notes: Vec::new(),
         }
     }
@@ -34,8 +37,15 @@ impl Diagnostic {
         Diagnostic {
             message: message.into(),
             label: None,
+            secondary: Vec::new(),
             notes: Vec::new(),
         }
+    }
+
+    /// Also underline `span`, with `label` next to it.
+    pub(crate) fn with_secondary(mut self, span: Span, label: impl Into<String>) -> Self {
+        self.secondary.push((span, label.into()));
+        self
     }
 
     pub(crate) fn with_note(mut self, note: impl Into<String>) -> Self {
@@ -66,14 +76,21 @@ impl Diagnostic {
             // Spans are byte offsets; ariadne counts chars by default.
             .with_index_type(IndexType::Byte)
             .with_color(color);
-        let mut report = Report::build(ReportKind::Error, (path, range.clone()))
+        let mut labels = vec![(*span, label, Color::Red)];
+        labels.extend(self.secondary.iter().map(|(s, l)| (*s, l, Color::Blue)));
+        // ariadne draws labels in the order they are added; out of source
+        // order, it splits the report into separate snippets.
+        labels.sort_by_key(|(span, ..)| span.start);
+        let mut report = Report::build(ReportKind::Error, (path, range))
             .with_config(config)
-            .with_message(&self.message)
-            .with_label(
-                Label::new((path, range))
+            .with_message(&self.message);
+        for (span, label, color) in labels {
+            report = report.with_label(
+                Label::new((path, span.start..span.end))
                     .with_message(label)
-                    .with_color(Color::Red),
+                    .with_color(color),
             );
+        }
         for note in &self.notes {
             report = report.with_note(note);
         }
@@ -119,6 +136,30 @@ mod tests {
         assert_eq!(
             render(&diag, "def f() = 1;"),
             "Error: no `main` function\n  in test.etd\n  Note: add one\n"
+        );
+    }
+
+    #[test]
+    fn secondary_labels_share_one_snippet() {
+        let src = "def f() = 1;\ndef f() = 2;";
+        let second = src.rfind("f()").unwrap();
+        let diag = Diagnostic::new(
+            "dup",
+            Span {
+                start: second,
+                end: second + 1,
+            },
+            "again",
+        )
+        .with_secondary(Span { start: 4, end: 5 }, "first");
+        let out = render(&diag, src);
+        // The report is located at the primary label, and both labels are
+        // drawn in one snippet, in source order.
+        assert!(out.contains("test.etd:2:5"), "{out}");
+        assert_eq!(out.matches("test.etd").count(), 1, "{out}");
+        assert!(
+            out.find("first").unwrap() < out.find("again").unwrap(),
+            "{out}"
         );
     }
 

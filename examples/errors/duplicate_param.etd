@@ -1,0 +1,1 @@
+def main() = fun(x, y, x) => x + y;

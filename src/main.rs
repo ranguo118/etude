@@ -5,6 +5,7 @@ use std::process::ExitCode;
 
 use clap::{Parser as _, ValueEnum};
 
+use etude::check::{self, SemError};
 use etude::diagnostic::Diagnostic;
 use etude::eval::{self, EvalError};
 use etude::lexer::Lexer;
@@ -48,20 +49,24 @@ impl Color {
 
 enum Error {
     Parse(ParserError),
+    /// Every problem the checks found; the program did not run.
+    Check(Vec<SemError>),
     Eval(EvalError),
 }
 
 impl Error {
-    fn diagnostic(&self) -> Diagnostic {
+    fn diagnostics(&self) -> Vec<Diagnostic> {
         match self {
-            Error::Parse(e) => e.diagnostic(),
-            Error::Eval(e) => e.diagnostic(),
+            Error::Parse(e) => vec![e.diagnostic()],
+            Error::Check(errors) => errors.iter().map(SemError::diagnostic).collect(),
+            Error::Eval(e) => vec![e.diagnostic()],
         }
     }
 }
 
-/// Lex, parse and evaluate a source file, returning the printed result.
-/// With `print_ast`, the parsed program is printed before it runs.
+/// Lex, parse, check and evaluate a source file, returning the printed
+/// result. With `print_ast`, the parsed program is printed before it is
+/// checked.
 ///
 /// The result is formatted here because values borrow from the AST, which
 /// only lives inside this function.
@@ -72,6 +77,7 @@ fn run(input: &str, print_ast: bool) -> Result<String, Error> {
     if print_ast {
         println!("{ast}");
     }
+    check::check(&ast).map_err(Error::Check)?;
     eval::eval(&ast)
         .map(|value| value.to_string())
         .map_err(Error::Eval)
@@ -96,7 +102,9 @@ fn main() -> ExitCode {
             ExitCode::SUCCESS
         }
         Err(e) => {
-            e.diagnostic().eprint(&path, &src, cli.color.enabled());
+            for diagnostic in e.diagnostics() {
+                diagnostic.eprint(&path, &src, cli.color.enabled());
+            }
             ExitCode::FAILURE
         }
     }

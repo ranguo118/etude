@@ -1,0 +1,5 @@
+def area(w, h) = w * h;
+
+def main() = area(2, 3);
+
+def area(r) = 3 * r * r;

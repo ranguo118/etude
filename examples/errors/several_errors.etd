@@ -1,0 +1,6 @@
+// Every problem the checks find is reported, not just the first.
+def f(a, a) = b;
+
+def f() = 1;
+
+def main() = f(c);

@@ -33,6 +33,11 @@ impl Builtin {
         }
     }
 
+    /// The builtin called `name`, if there is one.
+    pub(crate) fn from_name(name: &str) -> Option<Builtin> {
+        Builtin::ALL.into_iter().find(|b| b.name() == name)
+    }
+
     /// The type of each parameter. Arguments are checked against these
     /// before the builtin runs.
     pub(crate) fn params(self) -> &'static [Type] {

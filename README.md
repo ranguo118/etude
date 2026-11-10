@@ -70,14 +70,18 @@ BLESS=1 cargo test --test examples          # rewrite expected example output
   argument counts and type mismatches are runtime errors, and so is
   recursion deeper than 10,000 calls; `stacker` grows the native stack so
   deeply nested evaluation does not overflow it first.
+- **Checks** (`src/check.rs`): run after parsing, before anything is
+  evaluated. They report every variable that refers to nothing (even in
+  code that never runs), duplicate top-level definitions, duplicate
+  parameters and definitions that reuse a builtin's name, all at once.
 - **Errors** (`src/diagnostic.rs`): reported with ariadne. Each error's
   `Display` is the headline; `diagnostic()` adds the underlined location,
-  label and notes.
+  label, secondary labels (e.g. "first defined here") and notes.
 - **CLI** (`src/main.rs`, clap): `etude [--ast] [--color auto|always|never]
   <file>`.
-- **Tests:** 191 unit tests; 45 example programs (18 that run, including
-  factorial, fibonacci and FizzBuzz, and 27 that must fail with a specific
-  report).
+- **Tests:** 201 unit tests; 50 example programs (19 that run, including
+  factorial, fibonacci, FizzBuzz and Church numerals, and 31 that must fail
+  with a specific report).
 
 ## Design decisions so far
 
@@ -137,9 +141,8 @@ Each step ends with something that runs and is tested.
 
 ## 1. Loose ends
 
-- [ ] **Duplicate top-level names are an error:** "`f` is defined more than
-      once". Today the last definition silently wins. Give `Diagnostic`
-      secondary labels so the report can also point at the first definition.
+- [x] **Duplicate top-level names are an error:** "`f` is defined more than
+      once", pointing at both definitions.
 - [x] **Call-depth limit:** more than 10,000 nested calls is a "recursion
       limit reached" error; `stacker` keeps the native stack from
       overflowing first.
@@ -201,9 +204,12 @@ def sum(xs) = match xs {
 
 ## 7. Name resolution
 
-- [ ] A pass between parsing and evaluation that links every variable use to
-      its binding: "cannot find `x`" before running, and the information the
-      type checker needs.
+- [x] A pass between parsing and evaluation: "cannot find `x`" before
+      running, duplicate definitions and parameters.
+- [ ] Record what each variable use refers to (a local, a `def` or a
+      builtin), and the call graph between `def`s, for the type checker.
+- [ ] Move the remaining program-level checks (`main` exists and takes no
+      parameters) from the evaluator into it.
 
 ## 8. Hindley-Milner type checking
 

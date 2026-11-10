@@ -1,0 +1,9 @@
+Error: parameter `x` is listed more than once
+   ╭─[ examples/errors/duplicate_param.etd:1:24 ]
+   │
+ 1 │ def main() = fun(x, y, x) => x + y;
+   │                  ┬     ┬
+   │                  ╰──────── first listed here
+   │                        │
+   │                        ╰── listed again here
+───╯

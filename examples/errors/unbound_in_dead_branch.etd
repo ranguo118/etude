@@ -1,0 +1,3 @@
+// The checks run before the program, so this is reported even though the
+// branch never runs.
+def main() = if true { 1 } else { typo };
